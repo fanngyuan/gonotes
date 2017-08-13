@@ -2,13 +2,15 @@
 简单介绍了goroutines and channels
 
 ## 代码
+![image](http://ot8dhel3i.bkt.clouddn.com/tasks.jpg)
 考虑如下情况，简单的任务处理程序，代码仅仅是获取任务，执行任务：
 ```
 func main() {
   tasks := getTasks()
   // Process each task.
   for _, task := range tasks {
-process(task) } 
+  process(task) 
+  } 
  
 ... }
 ```
@@ -23,6 +25,8 @@ func main() {
      go worker(ch)
 }
 ```
+
+![image](http://ot8dhel3i.bkt.clouddn.com/task_queue.jpg)
 最终代码如下：
 ```
 func main() {
@@ -51,21 +55,43 @@ func worker(ch) { for {
 ```
 主函数通过channel发送任务，worker通过channel获取任务并执行。
 
-## channel 是有趣的
+![image](http://ot8dhel3i.bkt.clouddn.com/channels_features.jpg)
 - channel是goroutine 安全的
 - 能存储并在goroutine之间传输数据
 - 先进先出
 - 会导致goroutine的暂停和唤醒
 channel如此好用，那channel到底是如何设计实现的呢
 
-## make channel
+![image](http://ot8dhel3i.bkt.clouddn.com/channel_first.jpg)
+![image](http://ot8dhel3i.bkt.clouddn.com/channels_internals.jpg)
+
 可以通过内置的make函数来创建buffered和unbuffered channel。我们先考虑实现如果需要实现goroutine 安全和存储数据并且FIFO需要怎样的基本实现。
+
+![image](http://ot8dhel3i.bkt.clouddn.com/hchan1.jpg)
 
 简单来说可以使用queue+lock实现。这也是channel实际上的实现方式。channel有一个内置的buf（循环队列），一个mutex作为lock，读取和写入queue由两个值进行控制和标记，一个是sendx(send index)，一个是recvx(receive index)。举例来说如果你使用
 ```
 ch:=make(chan Task,3)
 ```
-来创建队列，你会得到一个slot为3的空队列，sendx和recvx都为0。当放入一个task后，sendx为1并且slot 0被占用，如果继续放入两个task,这时候sendx为0，并且所有的slots都有数据。当读取一个task之后slot 0的数据清空，recvx设置为1。由于每一个hchan这样的结构都是在堆上分配，并且返回指针，channel就是指向hchan的指针。这就是为什么我们可以轻易的将channel在函数，goroutine之间传递。因为channel已经是指针，所以我们不需要一定传递指针。
+![image](http://ot8dhel3i.bkt.clouddn.com/hchan2.jpg)
+
+来创建队列，你会得到一个slot为3的空队列，sendx和recvx都为0。
+
+![image](http://ot8dhel3i.bkt.clouddn.com/hchan3.jpg)
+当放入一个task后，sendx为1并且slot 0被占用，
+
+![image](http://ot8dhel3i.bkt.clouddn.com/hchan4.jpg)
+
+如果继续放入两个task,这时候sendx为0，并且所有的slots都有数据。
+
+![image](http://ot8dhel3i.bkt.clouddn.com/hchan5.jpg)
+
+当读取一个task之后slot 0的数据清空，recvx设置为1。
+
+![image](http://ot8dhel3i.bkt.clouddn.com/chan1.jpg)
+![image](http://ot8dhel3i.bkt.clouddn.com/chan2.jpg)
+
+由于每一个hchan这样的结构都是在堆上分配，并且返回指针，channel就是指向hchan的指针。这就是为什么我们可以轻易的将channel在函数，goroutine之间传递。因为channel已经是指针，所以我们不需要一定传递指针。
 
 ## sender and receiver
 现在我们已经有了channel，那现在考虑使用场景。针对如下代码，考虑下send和receive如何工作？（这里已经移除了channel无关的代码）
